@@ -213,9 +213,21 @@
       (rows.length ? '<div class="tablewrap"><table><thead><tr><th>Күні</th><th>Оқушы</th><th>Сынып</th><th>Нұсқа</th><th>Балл</th><th>Уақыты</th><th></th></tr></thead><tbody>' +
         rows.map(function (r) {
           var v = vById(r.variant_id), p = pct(r.score, r.total), key = "r:" + r.id;
-          return "<tr><td>" + esc(fmtDate(r.created_at)) + "</td><td>" + esc(r.student) + "</td><td>" + esc(r.klass || "") + "</td><td>" + esc(v ? v.title : "—") + '</td><td><span class="pill ' + level(p) + '">' + r.score + "/" + r.total + "</span></td><td>" + (r.seconds != null ? fmtTime(r.seconds) : "") + "</td><td>" +
-            (S.confirmDel === key ? '<button class="btn danger small" data-act="delres" data-id="' + esc(r.id) + '">Өшіру</button> <button class="btn ghost small" data-act="nodel">Жоқ</button>' : '<button class="btn ghost small" data-act="askdel" data-k="' + key + '">Өшіру</button>') + "</td></tr>";
+          return "<tr><td>" + esc(fmtDate(r.created_at)) + "</td><td>" + esc(r.student) + "</td><td>" + esc(r.klass || "") + "</td><td>" + esc(v ? v.title : "—") + '</td><td><span class="pill ' + level(p) + '">' + r.score + "/" + r.total + "</span></td><td>" + (r.seconds != null ? fmtTime(r.seconds) : "") + "</td><td>" + '<button class="btn small" data-act="detail" data-id="' + esc(r.id) + '">' + (S.detail === r.id ? "Жабу" : "Қателері") + "</button> " +
+            (S.confirmDel === key ? '<button class="btn danger small" data-act="delres" data-id="' + esc(r.id) + '">Өшіру</button> <button class="btn ghost small" data-act="nodel">Жоқ</button>' : '<button class="btn ghost small" data-act="askdel" data-k="' + key + '">Өшіру</button>') + "</td></tr>" + (S.detail === r.id ? detailRow(r, v) : "");
         }).join("") + "</tbody></table></div>" : '<div class="empty">Әзірге нәтиже жоқ.</div>');
+  }
+  function detailRow(r, v) {
+    if (!v) return '<tr><td colspan="7">Нұсқа табылмады.</td></tr>';
+    var a = r.answers || [], nWrong = 0;
+    var items = v.questions.map(function (q, i) {
+      var x = a[i], ok = x === q.correct;
+      if (ok) return '<li style="color:var(--ok)"><b>' + (i + 1) + ".</b> ✓ Дұрыс (" + LETTERS[q.correct] + ")</li>";
+      nWrong++;
+      return '<li style="color:var(--bad)"><b>' + (i + 1) + ".</b> ✗ " + (x == null ? "Жауап бермеген" : "Таңдағаны: " + LETTERS[x] + " – " + esc(q.options[x] || "")) +
+        ' <span style="color:var(--ok)">· Дұрысы: ' + LETTERS[q.correct] + " – " + esc(q.options[q.correct]) + '</span><br><span class="muted" style="font-size:14px">' + esc(q.q) + "</span></li>";
+    }).join("");
+    return '<tr><td colspan="7" style="white-space:normal;background:var(--bg)"><b>' + esc(r.student) + ": " + nWrong + ' қате</b><ol style="list-style:none;margin:8px 0 0;padding:0;display:grid;gap:8px">' + items + "</ol></td></tr>";
   }
   function summaryHtml(rows) {
     if (!S.filterV) return '<p class="muted" style="margin:0">Тапсырмалар бойынша жиынтықты көру үшін жоғарыдан нұсқаны таңдаңыз.</p>';
@@ -440,6 +452,7 @@
       case "ttab": S.tTab = b.getAttribute("data-t"); S.tMsg = ""; S.confirmDel = null; if (S.tTab === "results") loadResults(); else render(); break;
       case "reloadres": loadResults(); break;
       case "logout": sb.auth.signOut().then(function () { S.teacher = false; S.edit = null; go("#"); }); break;
+      case "detail": S.detail = S.detail === b.getAttribute("data-id") ? null : b.getAttribute("data-id"); render(); break;
       case "askdel": S.confirmDel = b.getAttribute("data-k"); render(); break;
       case "nodel": S.confirmDel = null; render(); break;
       case "delres":
