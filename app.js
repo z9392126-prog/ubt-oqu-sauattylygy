@@ -85,7 +85,7 @@
     else body = '<div class="grid">' + list.map(function (v) {
       var best = load("ubt-best-" + v.id);
       return '<article class="card"><h3>' + esc(v.title) + '</h3><div class="meta"><span>' + (v.questions || []).length + ' тапсырма</span><span>' + (v.texts || []).length + ' мәтін</span><span>' + v.minutes + ' минут</span></div>' +
-        (best ? '<p class="muted" style="margin:0;font-size:14px">Сенің ең жақсы нәтижең: <b>' + best.score + "/" + best.total + "</b></p>" : "") +
+        (best ? '<p class="muted" style="margin:0;font-size:14px">Сенің нәтижең: <b>' + best.score + "/" + best.total + "</b></p>" : "") +
         '<button class="btn" data-act="open" data-id="' + esc(v.id) + '">Тестті бастау</button></article>';
     }).join("") + "</div>";
     return header() + '<main><div class="wrap">' +
@@ -108,12 +108,12 @@
     return header() + '<main><div class="wrap"><form class="panel" data-form="start" style="max-width:640px">' +
       '<h2 style="font-size:26px">' + esc(v.title) + "</h2>" +
       '<div class="meta"><span>' + v.questions.length + ' тапсырма</span><span>' + v.texts.length + ' мәтін</span><span>' + v.minutes + ' минут</span></div>' +
-      '<p class="muted" style="margin:0">Аты-жөніңді жаз. Тест басталған соң таймер қосылады. Уақыт біткенде тест өздігінен аяқталады.</p>' +
+      '<p class="muted" style="margin:0">Аты-жөнің мен сыныбыңды дұрыс жаз. Әр тестті тек 1 рет тапсыруға болады. Тест басталған соң таймер қосылады. Уақыт біткенде тест өздігінен аяқталады.</p>' +
       '<div class="two"><label>Аты-жөні *<input type="text" id="s-name" required maxlength="80" value="' + esc(S.name) + '" placeholder="Мысалы: Айгерім Серікова"></label>' +
-      '<label>Сыныбы<input type="text" id="s-klass" maxlength="20" value="' + esc(S.klass) + '" placeholder="Мысалы: 11 А"></label></div>' +
+      '<label>Сыныбы *<input type="text" id="s-klass" required maxlength="20" value="' + esc(S.klass) + '" placeholder="Мысалы: 11 А"></label></div>' +
+      (S.startMsg ? '<p class="msg err">' + esc(S.startMsg) + "</p>" : "") +
       (saved ? '<p class="msg ok">Бұл тестті бұрын бастағансың. «Жалғастыру» батырмасын бассаң, сол жерден жалғасады.</p>' : "") +
       '<div class="row"><button class="btn" type="submit">' + (saved ? "Жалғастыру" : "Тестті бастау") + "</button>" +
-      (saved ? '<button class="btn ghost" type="button" data-act="restart">Басынан бастау</button>' : "") +
       '<button class="btn ghost" type="button" data-act="home">Артқа</button></div></form></div></main>' + footer();
   }
 
@@ -164,8 +164,8 @@
     return header() + '<main><div class="wrap">' +
       '<section class="panel"><div class="score">' + ring(p) + '<div style="display:grid;gap:6px"><span class="eyebrow" style="margin:0">' + esc(v.title) + "</span><h2>" + esc(R.student) + ": " + R.score + " / " + R.total + " балл</h2>" +
       '<span class="muted">Уақыты: ' + fmtTime(R.seconds) + " · Қате: " + wrong.length + "</span><p style=\"margin:0\">" + note + "</p>" +
-      '<p class="msg ' + (S.saveState === "err" ? "err" : "ok") + '">' + (S.saveState === "saving" ? "Нәтиже мұғалімге жіберілуде…" : S.saveState === "ok" ? "Нәтиже мұғалімге жіберілді." : S.saveState === "err" ? "Нәтиже жіберілмеді. Интернетті тексеріңіз." : "") + "</p></div></div>" +
-      '<div class="row"><button class="btn" data-act="again">Қайта тапсыру</button><button class="btn ghost" data-act="home">Рейтинг және басқа нұсқалар</button></div></section>' +
+      '<p class="msg ' + (S.saveState === "err" || S.saveState === "dup" ? "err" : "ok") + '">' + (S.saveState === "saving" ? "Нәтиже мұғалімге жіберілуде…" : S.saveState === "ok" ? "Нәтиже мұғалімге жіберілді." : S.saveState === "err" ? "Нәтиже жіберілмеді. Интернетті тексеріңіз." : S.saveState === "dup" ? "Бұл тест бұрын тапсырылған, сондықтан жаңа нәтиже мұғалімге жіберілмеді." : "") + "</p></div></div>" +
+      '<div class="row"><button class="btn" data-act="home">Рейтинг және басқа нұсқалар</button></div></section>' +
       '<div class="section-title"><h2>' + (wrong.length ? "Қателерді талдау" : "Барлық жауап дұрыс") + '</h2><span class="muted">Қызыл — сенің қате жауабың, жасыл — дұрыс жауап</span></div>' +
       '<div class="review">' + v.questions.map(function (q, i) {
         var a = R.answers[i], ok = a === q.correct;
@@ -364,7 +364,7 @@
     S.view = "result"; S.saveState = "saving"; S.cur = 0; render(); window.scrollTo(0, 0);
     if (!sb) { S.saveState = "err"; render(); return; }
     sb.from("ubt_results").insert({ variant_id: v.id, student: S.name, klass: S.klass || null, score: score, total: v.questions.length, seconds: seconds, answers: S.answers }).then(function (r) {
-      S.saveState = r.error ? "err" : "ok"; if (r.error) console.error(r.error); else loadWeek();
+      S.saveState = r.error ? (r.error.code === "23505" ? "dup" : "err") : "ok"; if (r.error) console.error(r.error); else loadWeek();
       if (S.view === "result") render();
     });
   }
@@ -447,9 +447,16 @@
     var f = ev.target.getAttribute("data-form"); if (!f) return; ev.preventDefault();
     if (f === "start") {
       S.name = document.getElementById("s-name").value.trim(); S.klass = document.getElementById("s-klass").value.trim();
-      if (!S.name) return;
+      if (!S.name || !S.klass) return;
       store("ubt-me", { name: S.name, klass: S.klass });
-      startTest(true);
+      var sv = load(runKey());
+      if (sv && sv.deadline > Date.now() && (sv.name || "").toLowerCase() === S.name.toLowerCase()) { S.startMsg = ""; startTest(true); return; }
+      if (!sb) { startTest(false); return; }
+      S.startMsg = "Тексерілуде…"; render();
+      sb.rpc("ubt_taken", { v: S.v.id, s: S.name, k: S.klass }).then(function (r) {
+        if (r.data === true) { S.startMsg = S.name + ", сен бұл тестті тапсырып қойғансың. Әр тестті тек 1 рет тапсыруға болады."; render(); return; }
+        S.startMsg = ""; startTest(false);
+      });
     } else if (f === "login") {
       var pass = document.getElementById("l-pass").value;
       sb.auth.signInWithPassword({ email: cfg.teacherEmail, password: pass }).then(function (r) {
@@ -467,7 +474,7 @@
     var b = ev.target.closest("[data-act]"); if (!b) return;
     var a = b.getAttribute("data-act"), i = parseInt(b.getAttribute("data-i"), 10);
     switch (a) {
-      case "open": go("#v-" + b.getAttribute("data-id")); break;
+      case "open": S.startMsg = ""; go("#v-" + b.getAttribute("data-id")); break;
       case "home": go("#"); break;
       case "teacher": go("#mugalim"); break;
       case "restart": store(runKey(), null); render(); break;
