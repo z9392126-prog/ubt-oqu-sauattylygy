@@ -209,13 +209,48 @@
       '<div class="stats"><div class="stat"><b>' + rows.length + '</b><span>тапсыру</span></div><div class="stat"><b>' + Object.keys(students).length + '</b><span>оқушы</span></div><div class="stat"><b>' + avg + '%</b><span>орташа нәтиже</span></div><div class="stat"><b>' + (avgTime != null ? fmtTime(avgTime) : "—") + '</b><span>орташа уақыт</span></div></div>' +
       summaryHtml(rows) +
       '<h3 style="font-size:20px">Рейтинг (' + (S.filterP === "week" ? "соңғы 7 күн" : "барлық уақыт") + ')</h3>' + rankTable(ranking(rows)) +
-      '<h3 style="font-size:20px">Барлық тапсырулар</h3>' +
-      (rows.length ? '<div class="tablewrap"><table><thead><tr><th>Күні</th><th>Оқушы</th><th>Сынып</th><th>Нұсқа</th><th>Балл</th><th>Уақыты</th><th></th></tr></thead><tbody>' +
-        rows.map(function (r) {
+      pivotHtml(rows) +
+      (rows.length ? groupsHtml(rows) : '<div class="empty">Әзірге нәтиже жоқ.</div>');
+  }
+  function attemptsTable(rows) {
+    return '<div class="tablewrap"><table><thead><tr><th>Күні</th><th>Оқушы</th><th>Сынып</th><th>Нұсқа</th><th>Балл</th><th>Уақыты</th><th></th></tr></thead><tbody>' +
+      rows.map(function (r) {
           var v = vById(r.variant_id), p = pct(r.score, r.total), key = "r:" + r.id;
           return "<tr><td>" + esc(fmtDate(r.created_at)) + "</td><td>" + esc(r.student) + "</td><td>" + esc(r.klass || "") + "</td><td>" + esc(v ? v.title : "—") + '</td><td><span class="pill ' + level(p) + '">' + r.score + "/" + r.total + "</span></td><td>" + (r.seconds != null ? fmtTime(r.seconds) : "") + "</td><td>" + '<button class="btn small" data-act="detail" data-id="' + esc(r.id) + '">' + (S.detail === r.id ? "Жабу" : "Қателері") + "</button> " +
             (S.confirmDel === key ? '<button class="btn danger small" data-act="delres" data-id="' + esc(r.id) + '">Өшіру</button> <button class="btn ghost small" data-act="nodel">Жоқ</button>' : '<button class="btn ghost small" data-act="askdel" data-k="' + key + '">Өшіру</button>') + "</td></tr>" + (S.detail === r.id ? detailRow(r, v) : "");
-        }).join("") + "</tbody></table></div>" : '<div class="empty">Әзірге нәтиже жоқ.</div>');
+        }).join("") + "</tbody></table></div>";
+  }
+  function groupsHtml(rows) {
+    var ids = S.variants.map(function (v) { return v.id; }).filter(function (id) { return rows.some(function (r) { return r.variant_id === id; }); });
+    rows.forEach(function (r) { if (ids.indexOf(r.variant_id) < 0) ids.push(r.variant_id); });
+    return ids.map(function (id) {
+      var rs = rows.filter(function (r) { return r.variant_id === id; }), v = vById(id);
+      var avg = Math.round(rs.reduce(function (s, r) { return s + pct(r.score, r.total); }, 0) / rs.length);
+      return '<h3 style="font-size:20px">' + esc(v ? v.title : "Өшірілген нұсқа") + ' <span class="muted" style="font-size:15px;font-family:var(--f-body);font-weight:400">· ' + rs.length + " тапсыру · орташа " + avg + "%</span></h3>" + attemptsTable(rs);
+    }).join("");
+  }
+  function pivotHtml(rows) {
+    if (!rows.length) return "";
+    var vids = S.variants.map(function (v) { return v.id; }).filter(function (id) { return rows.some(function (r) { return r.variant_id === id; }); });
+    var by = {}, keys = [];
+    rows.forEach(function (r) {
+      var k = r.student.trim().toLowerCase() + "|" + (r.klass || "").trim().toLowerCase();
+      if (!by[k]) { by[k] = { student: r.student, klass: r.klass || "", cells: {} }; keys.push(k); }
+      var c = by[k].cells[r.variant_id];
+      if (!c) by[k].cells[r.variant_id] = { score: r.score, total: r.total, n: 1 };
+      else { c.n++; if (r.score > c.score) { c.score = r.score; c.total = r.total; } }
+    });
+    keys.sort(function (a, b) { return by[a].klass.localeCompare(by[b].klass) || by[a].student.localeCompare(by[b].student); });
+    return '<h3 style="font-size:20px">Оқушылар бойынша баллдар <span class="muted" style="font-size:15px;font-family:var(--f-body);font-weight:400">· әр тесттің ең жақсы нәтижесі</span></h3>' +
+      '<div class="tablewrap"><table><thead><tr><th>Оқушы</th><th>Сынып</th>' + vids.map(function (id) { return '<th style="white-space:normal;min-width:110px">' + esc(vById(id).title) + "</th>"; }).join("") + "<th>Барлығы</th></tr></thead><tbody>" +
+      keys.map(function (k) {
+        var x = by[k], sum = 0, tot = 0;
+        return "<tr><td>" + esc(x.student) + "</td><td>" + esc(x.klass) + "</td>" + vids.map(function (id) {
+          var c = x.cells[id]; if (!c) return '<td class="muted">—</td>';
+          sum += c.score; tot += c.total;
+          return '<td><span class="pill ' + level(pct(c.score, c.total)) + '">' + c.score + "/" + c.total + "</span>" + (c.n > 1 ? ' <span class="muted" style="font-size:13px">(' + c.n + " рет)</span>" : "") + "</td>";
+        }).join("") + "<td><b>" + sum + "/" + tot + "</b></td></tr>";
+      }).join("") + "</tbody></table></div>";
   }
   function detailRow(r, v) {
     if (!v) return '<tr><td colspan="7">Нұсқа табылмады.</td></tr>';
