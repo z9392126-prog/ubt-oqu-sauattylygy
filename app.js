@@ -191,7 +191,7 @@
   }
   function teacherView() {
     var tabs = '<div class="tabsbar"><button data-act="ttab" data-t="results" aria-pressed="' + (S.tTab === "results") + '">Нәтижелер</button><button data-act="ttab" data-t="variants" aria-pressed="' + (S.tTab !== "results") + '">Нұсқалар</button><span style="flex:1"></span><button class="btn ghost small" data-act="logout">Шығу</button></div>';
-    var body = S.tTab === "results" ? resultsTab() : S.edit ? editorView() : variantsTab();
+    var body = S.tTab === "results" ? (S.studentKey ? studentView() : resultsTab()) : S.edit ? editorView() : variantsTab();
     return header() + '<main><div class="wrap">' + tabs + (S.tMsg ? '<p class="msg ' + (S.tErr ? "err" : "ok") + '">' + esc(S.tMsg) + "</p>" : "") + body + "</div></main>" + footer();
   }
   function resultsTab() {
@@ -216,7 +216,7 @@
     return '<div class="tablewrap"><table><thead><tr><th>Күні</th><th>Оқушы</th><th>Сынып</th><th>Нұсқа</th><th>Балл</th><th>Уақыты</th><th></th></tr></thead><tbody>' +
       rows.map(function (r) {
           var v = vById(r.variant_id), p = pct(r.score, r.total), key = "r:" + r.id;
-          return "<tr><td>" + esc(fmtDate(r.created_at)) + "</td><td>" + esc(r.student) + "</td><td>" + esc(r.klass || "") + "</td><td>" + esc(v ? v.title : "—") + '</td><td><span class="pill ' + level(p) + '">' + r.score + "/" + r.total + "</span></td><td>" + (r.seconds != null ? fmtTime(r.seconds) : "") + "</td><td>" + '<button class="btn small" data-act="detail" data-id="' + esc(r.id) + '">' + (S.detail === r.id ? "Жабу" : "Қателері") + "</button> " +
+          return "<tr><td>" + esc(fmtDate(r.created_at)) + '</td><td><button data-act="student" data-k="' + esc(skey(r)) + '" style="background:none;border:0;padding:0;color:var(--accent);text-decoration:underline;cursor:pointer;font:inherit;text-align:left">' + esc(r.student) + "</button></td><td>" + esc(r.klass || "") + "</td><td>" + esc(v ? v.title : "—") + '</td><td><span class="pill ' + level(p) + '">' + r.score + "/" + r.total + "</span></td><td>" + (r.seconds != null ? fmtTime(r.seconds) : "") + "</td><td>" + '<button class="btn small" data-act="detail" data-id="' + esc(r.id) + '">' + (S.detail === r.id ? "Жабу" : "Қателері") + "</button> " +
             (S.confirmDel === key ? '<button class="btn danger small" data-act="delres" data-id="' + esc(r.id) + '">Өшіру</button> <button class="btn ghost small" data-act="nodel">Жоқ</button>' : '<button class="btn ghost small" data-act="askdel" data-k="' + key + '">Өшіру</button>') + "</td></tr>" + (S.detail === r.id ? detailRow(r, v) : "");
         }).join("") + "</tbody></table></div>";
   }
@@ -245,7 +245,7 @@
       '<div class="tablewrap"><table><thead><tr><th>Оқушы</th><th>Сынып</th>' + vids.map(function (id) { return '<th style="white-space:normal;min-width:110px">' + esc(vById(id).title) + "</th>"; }).join("") + "<th>Барлығы</th></tr></thead><tbody>" +
       keys.map(function (k) {
         var x = by[k], sum = 0, tot = 0;
-        return "<tr><td>" + esc(x.student) + "</td><td>" + esc(x.klass) + "</td>" + vids.map(function (id) {
+        return '<tr><td><button data-act="student" data-k="' + esc(k) + '" style="background:none;border:0;padding:0;color:var(--accent);text-decoration:underline;cursor:pointer;font:inherit;text-align:left">' + esc(x.student) + "</button></td><td>" + esc(x.klass) + "</td>" + vids.map(function (id) {
           var c = x.cells[id]; if (!c) return '<td class="muted">—</td>';
           sum += c.score; tot += c.total;
           return '<td><span class="pill ' + level(pct(c.score, c.total)) + '">' + c.score + "/" + c.total + "</span>" + (c.n > 1 ? ' <span class="muted" style="font-size:13px">(' + c.n + " рет)</span>" : "") + "</td>";
@@ -263,6 +263,32 @@
         ' <span style="color:var(--ok)">· Дұрысы: ' + LETTERS[q.correct] + " – " + esc(q.options[q.correct]) + '</span><br><span class="muted" style="font-size:14px">' + esc(q.q) + "</span></li>";
     }).join("");
     return '<tr><td colspan="7" style="white-space:normal;background:var(--bg)"><b>' + esc(r.student) + ": " + nWrong + ' қате</b><ol style="list-style:none;margin:8px 0 0;padding:0;display:grid;gap:8px">' + items + "</ol></td></tr>";
+  }
+  function skey(r) { return r.student.trim().toLowerCase() + "|" + (r.klass || "").trim().toLowerCase(); }
+  function answersList(r, v) {
+    var a = r.answers || [];
+    return '<ol style="list-style:none;margin:0;padding:0;display:grid;gap:8px">' + v.questions.map(function (q, i) {
+      var x = a[i];
+      if (x === q.correct) return '<li style="color:var(--ok)"><b>' + (i + 1) + ".</b> ✓ Дұрыс (" + LETTERS[q.correct] + ")</li>";
+      return '<li style="color:var(--bad)"><b>' + (i + 1) + ".</b> ✗ " + (x == null ? "Жауап бермеген" : "Таңдағаны: " + LETTERS[x] + " – " + esc(q.options[x] || "")) +
+        ' <span style="color:var(--ok)">· Дұрысы: ' + LETTERS[q.correct] + " – " + esc(q.options[q.correct]) + '</span><br><span class="muted" style="font-size:14px">' + esc(q.q) + "</span></li>";
+    }).join("") + "</ol>";
+  }
+  function studentView() {
+    var back = '<div class="row"><button class="btn ghost small" data-act="backst">← Барлық нәтижелер</button></div>';
+    var rs = S.results.filter(function (r) { return skey(r) === S.studentKey; });
+    if (!rs.length) return back + '<div class="empty">Нәтиже табылмады.</div>';
+    var order = S.variants.map(function (v) { return v.id; });
+    rs = rs.slice().sort(function (a, b) { return (order.indexOf(a.variant_id) - order.indexOf(b.variant_id)) || (a.created_at < b.created_at ? -1 : 1); });
+    var sum = 0, tot = 0, secs = 0;
+    rs.forEach(function (r) { sum += r.score; tot += r.total; secs += r.seconds || 0; });
+    return back + '<section class="panel"><span class="eyebrow" style="margin:0">Оқушының нәтижелері</span><h2 style="font-size:30px">' + esc(rs[0].student) + '</h2><div class="meta"><span>Сыныбы: ' + esc(rs[0].klass || "—") + "</span></div>" +
+      '<div class="stats"><div class="stat"><b>' + rs.length + '</b><span>тапсырған тест</span></div><div class="stat"><b>' + sum + "/" + tot + '</b><span>жалпы балл</span></div><div class="stat"><b>' + pct(sum, tot) + '%</b><span>орташа нәтиже</span></div><div class="stat"><b>' + fmtTime(secs) + '</b><span>жалпы уақыт</span></div></div></section>' +
+      rs.map(function (r) {
+        var v = vById(r.variant_id), p = pct(r.score, r.total);
+        return '<section class="panel"><div class="row"><h3 style="font-size:21px;flex:1;min-width:200px">' + esc(v ? v.title : "Өшірілген нұсқа") + '</h3><span class="pill ' + level(p) + '">' + r.score + "/" + r.total + " · " + p + "%</span></div>" +
+          '<div class="meta"><span>' + esc(fmtDate(r.created_at)) + "</span><span>Уақыты: " + (r.seconds != null ? fmtTime(r.seconds) : "—") + "</span></div>" + (v ? answersList(r, v) : "") + "</section>";
+      }).join("");
   }
   function summaryHtml(rows) {
     if (!S.filterV) return '<p class="muted" style="margin:0">Тапсырмалар бойынша жиынтықты көру үшін жоғарыдан нұсқаны таңдаңыз.</p>';
@@ -491,10 +517,12 @@
       case "cancel": S.confirm = false; render(); break;
       case "submit": submit(false); break;
       case "again": S.view = "start"; render(); break;
-      case "ttab": S.tTab = b.getAttribute("data-t"); S.tMsg = ""; S.confirmDel = null; if (S.tTab === "results") loadResults(); else render(); break;
+      case "ttab": S.tTab = b.getAttribute("data-t"); S.studentKey = null; S.tMsg = ""; S.confirmDel = null; if (S.tTab === "results") loadResults(); else render(); break;
       case "reloadres": loadResults(); break;
       case "logout": sb.auth.signOut().then(function () { S.teacher = false; S.edit = null; go("#"); }); break;
       case "detail": S.detail = S.detail === b.getAttribute("data-id") ? null : b.getAttribute("data-id"); render(); break;
+      case "student": S.studentKey = b.getAttribute("data-k"); S.confirmDel = null; render(); window.scrollTo(0, 0); break;
+      case "backst": S.studentKey = null; render(); break;
       case "askdel": S.confirmDel = b.getAttribute("data-k"); render(); break;
       case "nodel": S.confirmDel = null; render(); break;
       case "delres":
