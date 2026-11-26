@@ -70,7 +70,7 @@
   function header() {
     return '<header class="band"><div class="wrap"><div><p class="eyebrow">ҰБТ-ға дайындық</p><h1>Оқу сауаттылығы</h1>' +
       '<p class="lede">Мәтінді мұқият оқы, ойлан, дұрыс жауапты тап. Пробный тестті тапсырып, қателеріңді түсіндірмесімен көр.</p></div>' +
-      '<div class="facts"><div class="fact"><b>10</b><span>тапсырма</span></div><div class="fact"><b>1–3</b><span>мәтін</span></div><div class="fact"><b>⏱</b><span>уақытпен</span></div></div></div></header>';
+      '<div class="facts"><div class="fact"><b>10</b><span>тапсырма</span></div><div class="fact"><b>1–3</b><span>мәтін</span></div><div class="fact"><b>∞</b><span>уақыт шектеусіз</span></div></div></div></header>';
   }
   function footer() {
     return '<footer><div class="wrap"><span>' + esc(cfg.school || "") + ' · ҰБТ: Оқу сауаттылығы</span>' +
@@ -84,7 +84,7 @@
     else if (!list.length) body = '<div class="empty"><b>Әзірге нұсқа жоқ.</b><br>Мұғалім жаңа нұсқа қосқанда, ол осында пайда болады.</div>';
     else body = '<div class="grid">' + list.map(function (v) {
       var best = load("ubt-best-" + v.id);
-      return '<article class="card"><h3>' + esc(v.title) + '</h3><div class="meta"><span>' + (v.questions || []).length + ' тапсырма</span><span>' + (v.texts || []).length + ' мәтін</span><span>' + v.minutes + ' минут</span></div>' +
+      return '<article class="card"><h3>' + esc(v.title) + '</h3><div class="meta"><span>' + (v.questions || []).length + ' тапсырма</span><span>' + (v.texts || []).length + ' мәтін</span><span>уақыт шектеусіз</span></div>' +
         (best ? '<p class="muted" style="margin:0;font-size:14px">Сенің нәтижең: <b>' + best.score + "/" + best.total + "</b></p>" : "") +
         '<button class="btn" data-act="open" data-id="' + esc(v.id) + '">Тестті бастау</button></article>';
     }).join("") + "</div>";
@@ -107,8 +107,8 @@
     var saved = load("ubt-run-" + v.id);
     return header() + '<main><div class="wrap"><form class="panel" data-form="start" style="max-width:640px">' +
       '<h2 style="font-size:26px">' + esc(v.title) + "</h2>" +
-      '<div class="meta"><span>' + v.questions.length + ' тапсырма</span><span>' + v.texts.length + ' мәтін</span><span>' + v.minutes + ' минут</span></div>' +
-      '<p class="muted" style="margin:0">Аты-жөнің мен сыныбыңды дұрыс жаз. Әр тестті тек 1 рет тапсыруға болады. Тест басталған соң таймер қосылады. Уақыт біткенде тест өздігінен аяқталады.</p>' +
+      '<div class="meta"><span>' + v.questions.length + ' тапсырма</span><span>' + v.texts.length + ' мәтін</span><span>уақыт шектеусіз</span></div>' +
+      '<p class="muted" style="margin:0">Аты-жөнің мен сыныбыңды дұрыс жаз. Әр тестті тек 1 рет тапсыруға болады. Уақыт шектелмейді, асықпай орында. Бірақ қанша уақытта тапсырғаның мұғалімге көрінеді.</p>' +
       '<div class="two"><label>Аты-жөні *<input type="text" id="s-name" required maxlength="80" value="' + esc(S.name) + '" placeholder="Мысалы: Айгерім Серікова"></label>' +
       '<label>Сыныбы *<input type="text" id="s-klass" required maxlength="20" value="' + esc(S.klass) + '" placeholder="Мысалы: 11 А"></label></div>' +
       (S.startMsg ? '<p class="msg err">' + esc(S.startMsg) + "</p>" : "") +
@@ -134,8 +134,8 @@
   function testView() {
     var v = S.v, q = v.questions[S.cur], n = v.questions.length;
     var answered = S.answers.filter(function (a) { return a != null; }).length;
-    var left = Math.max(0, (S.deadline - Date.now()) / 1000);
-    return '<div class="testbar"><div class="wrap"><span class="t">' + esc(v.title) + '</span><span class="muted" style="color:inherit;opacity:.8;font-size:15px" id="answered">' + answered + "/" + n + ' жауап</span><span class="timer' + (left < 120 ? " low" : "") + '" id="timer" aria-live="off">' + fmtTime(left) + "</span></div></div>" +
+    var left = (Date.now() - S.startedAt) / 1000;
+    return '<div class="testbar"><div class="wrap"><span class="t">' + esc(v.title) + '</span><span class="muted" style="color:inherit;opacity:.8;font-size:15px" id="answered">' + answered + "/" + n + ' жауап</span><span class="timer" id="timer" aria-live="off">⏱ ' + fmtTime(left) + "</span></div></div>" +
       '<main><div class="wrap">' + navHtml(false) +
       '<div class="split">' + readingHtml() +
       '<section class="qcard"><span class="qnum">' + (S.cur + 1) + "-тапсырма · " + ((q.text || 0) + 1) + "-мәтін бойынша</span>" +
@@ -358,7 +358,7 @@
   function persistRun() { store(runKey(), { answers: S.answers, cur: S.cur, deadline: S.deadline, startedAt: S.startedAt, name: S.name, klass: S.klass }); }
   function startTest(resume) {
     var v = S.v, saved = resume ? load(runKey()) : null;
-    if (saved && saved.deadline > Date.now()) {
+    if (saved && saved.startedAt) {
       S.answers = saved.answers; S.cur = saved.cur || 0; S.deadline = saved.deadline; S.startedAt = saved.startedAt;
     } else {
       S.answers = v.questions.map(function () { return null; }); S.cur = 0; S.startedAt = Date.now(); S.deadline = Date.now() + v.minutes * 60000;
@@ -369,9 +369,8 @@
   }
   function tick() {
     if (S.view !== "test") { clearInterval(S.timer); return; }
-    var left = (S.deadline - Date.now()) / 1000, el = document.getElementById("timer");
-    if (el) { el.textContent = fmtTime(left); el.className = "timer" + (left < 120 ? " low" : ""); }
-    if (left <= 0) submit(true);
+    var el = document.getElementById("timer");
+    if (el) el.textContent = "⏱ " + fmtTime((Date.now() - S.startedAt) / 1000);
   }
   function setQ(i) {
     S.cur = Math.max(0, Math.min(S.v.questions.length - 1, i));
@@ -382,7 +381,7 @@
     clearInterval(S.timer);
     var v = S.v, score = 0;
     v.questions.forEach(function (q, i) { if (S.answers[i] === q.correct) score++; });
-    var seconds = Math.min(v.minutes * 60, Math.round((Date.now() - S.startedAt) / 1000));
+    var seconds = Math.round((Date.now() - S.startedAt) / 1000);
     S.result = { student: S.name, klass: S.klass, score: score, total: v.questions.length, seconds: seconds, answers: S.answers.slice(), auto: !!auto };
     store(runKey(), null);
     var best = load("ubt-best-" + v.id);
@@ -476,7 +475,7 @@
       if (!S.name || !S.klass) return;
       store("ubt-me", { name: S.name, klass: S.klass });
       var sv = load(runKey());
-      if (sv && sv.deadline > Date.now() && (sv.name || "").toLowerCase() === S.name.toLowerCase()) { S.startMsg = ""; startTest(true); return; }
+      if (sv && sv.startedAt && (sv.name || "").toLowerCase() === S.name.toLowerCase()) { S.startMsg = ""; startTest(true); return; }
       if (!sb) { startTest(false); return; }
       S.startMsg = "Тексерілуде…"; render();
       sb.rpc("ubt_taken", { v: S.v.id, s: S.name, k: S.klass }).then(function (r) {
